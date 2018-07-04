@@ -141,7 +141,7 @@ if __name__ == '__main__':
     #filter rRNA from dataset
     print('Filtering rRNA......')
     start_time = datetime.now()
-    #os.system('bash metaThing.sh '+fp_dataset)
+    os.system('bash metaThing.sh '+fp_dataset)
     print('Filtering completed ({}) '.format(datetime.now() - start_time ))
     #build BWA index
     print('Building bwa index......')
