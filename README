@@ -1,0 +1,13 @@
+The programe can count the number of snps from the input. 
+
+It have several step to execute:
+
+1. loads card database
+2. filters ribosome RNA by MetaRNA
+3. uses information from card database to build BWA index
+4. aligns the input reads by BWA
+5. count the number of snps from input reads 
+
+usage:
+
+python3 AMR.py [input.fna]

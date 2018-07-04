@@ -1,0 +1,3 @@
+#!bin/bash/
+
+for i in `ls input/`; do ./rna_hmm3.py -k bac -i input/$i -L HMM3/ -o output/$i; done;
