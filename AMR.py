@@ -124,8 +124,9 @@ def count_ARO(fp_sam,card):
             variant = card.resistance_variants[rname[0]]
             for j in range(0,len(variant)):
                 pos = variant.loc[j,'pos']
-                if pos < end and pos >= start and variant.loc[j,'curr'] == qseq[pos-start]:
-                    variant.loc[j,'total'] +=1
+                if pos < end and pos >= start:
+                    if variant.loc[j,'curr'] == 'U' or variant.loc[j,'curr'] == qseq[pos-start]:
+                        variant.loc[j,'total'] +=1
 
 if __name__ == '__main__':
     #arguments
@@ -141,7 +142,7 @@ if __name__ == '__main__':
     #filter rRNA from dataset
     print('Filtering rRNA......')
     start_time = datetime.now()
-    os.system('bash metaThing.sh '+fp_dataset)
+    #os.system('bash metaThing.sh '+fp_dataset)
     print('Filtering completed ({}) '.format(datetime.now() - start_time ))
     #build BWA index
     print('Building bwa index......')
