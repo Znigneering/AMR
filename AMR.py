@@ -4,16 +4,9 @@ import readFile
 import numpy as np
 import pysam as ps
 import os
-import sys
 from datetime import datetime
 
 class CARD(object):
-    """
-    This class is used to load information from card database.
-    it has three attributes, resistance_variants
-                             rRNAs
-                             table
-    """
     def __init__(self):
         data = json.load(open('card/card.json'))
         
@@ -27,17 +20,37 @@ class CARD(object):
                     #snps
                     snps = record.get('model_param').get('snp').get('param_value')
                     #species_name with rRNA_type
-                    name = ' '.join(record.get('model_name').split()[0:3])
+                    name = record.get('ARO_name').split()
+                    for i in range(0,len(name)):
+                        if name[i] == 'rRNA':
+                            name = ' '.join(name[0:i])
+                            break
                     #sequence
                     accession,fmin,fmax,strand,sequence = next(iter(
                             record.get('model_sequences').get('sequence').values())).get('dna_sequence').values()
                     #ARO
                     ARO_accession = record.get('ARO_accession')
-                    #add snps into the dictionary
-                    a = resistance_variants.get(accession)
-                    if a is None:
-                        resistance_variants[accession] = CARD.parser_snps(snps,0,ARO_accession)
+                    #check whether snps are valid
+                    item = resistance_variants.get(accession)
+                    """
+                    isVaild = True
+                    for i in snps:
+                        item = snps.get(i)
+                        nt = item[0]
+                        pos = int(item[1:-1]) - 1
+                        if sequence[pos] != nt and nt != 'U':
+                            isVaild == False
+                            break
+                    #add snps into the dictionary if they're vaild
+                    if isVaild:
+                    """
+                    #add rRNA into list
+                    if item is None:
+                        resistance_variants[accession] = CARD.parser_snps(snps,0,ARO_accession,fmin)
                         rRNAs[accession] = [sequence]
+                        #fetch fasta from entrez
+                        fn = '_'.join(name.split()) + '.fna'
+                        os.system('esearch -query '+accession+' -db nuccore | efetch -format fasta > genome/'+fn)
                     else:
                         seqid = 0
                         notFound = True
@@ -49,17 +62,15 @@ class CARD(object):
                         if notFound:
                             rRNAs[accession].append(sequence)
                         resistance_variants[accession] = resistance_variants[accession].append(
-                            CARD.parser_snps(snps,seqid,ARO_accession), ignore_index=True)
-                    #add matched accession and species name into dictionary
+                            CARD.parser_snps(snps,seqid,ARO_accession,fmin), ignore_index=True)
+                    #add matched accession and species name and rRNA type into dictionary
                     if table.get(accession) == None:
                         table[accession] = name
             self.resistance_variants = resistance_variants
             self.rRNAs = rRNAs
             self.table = table
-    def parser_snps(snps,seqid,ARO_accession):
-        """
-        This method can parser snps into a pandas dataframe
-        """
+    def parser_snps(snps,seqid,ARO_accession,offset):
+        #parser snps into prev nt, position of nt, curr nt, seqid, ARO, count
         df = []
         for i in snps:
             i = snps.get(i)
@@ -101,6 +112,9 @@ def build_bwa_index(method,rRNAs,prefix):
                 reference_file.write(i[1][index]+'\n')
         reference_file.close()
         os.system('bwa index -p bwa_index/'+prefix+' bwa_index/'+prefix+'.fna')
+    elif (method == 1):
+        os.system('cat genome/* > bwa_index/'+prefix+'.fna')
+        os.system('bwa index -p bwa_index/'+prefix+' bwa_index/'+prefix+'.fna')
 
 def count_ARO(fp_sam,card):
     """
@@ -116,12 +130,14 @@ def count_ARO(fp_sam,card):
         if i.reference_id!=-1 and i.flag == 0:
             qseq = i.query_alignment_sequence
             rseq = references[i.reference_id]
-            rname = i.reference_name.split(':')
+            rname = i.reference_name.split(':')[0]
             # 1-based?
             start = i.reference_start
             end = i.reference_end
-
-            variant = card.resistance_variants[rname[0]]
+            if card.table.get(rname) == None:
+                variant = card.resistance_variants[rname.split('.')[0]]
+            else:
+                variant = card.resistance_variants[rname]
             for j in range(0,len(variant)):
                 pos = variant.loc[j,'pos']
                 if pos < end and pos >= start:
@@ -130,7 +146,7 @@ def count_ARO(fp_sam,card):
 
 if __name__ == '__main__':
     #arguments
-    fp_dataset = sys.argv[1]
+    fp_dataset = 'test_files/sim.fna'
     prefix = 'card'
     
     timer = datetime.now()
@@ -147,20 +163,18 @@ if __name__ == '__main__':
     #build BWA index
     print('Building bwa index......')
     start_time = datetime.now()
-    build_bwa_index(0,card.rRNAs,prefix)
+    build_bwa_index(1,card.rRNAs,prefix)
     print('Building completed ({}) '.format(datetime.now() - start_time ))
     #align rRNA reads
     print('Aligning sequences(direct alignment)......')
     start_time = datetime.now()
     bwa_sequences(prefix,'test_files/mt.seq')
     print('Alignment completed ({}) '.format(datetime.now() - start_time ))
-    
     #count the number of snps in the reads
     print('Counting snps......')
     start_time = datetime.now()
     count_ARO('alignments/bwa.sam',card)
     print('Counting completed ({}) '.format(datetime.now() - start_time ))
-    
     #save into snps.count
     with open('snps.count','w') as fw:
         for i in card.resistance_variants:
