@@ -4,8 +4,8 @@ import readFile
 import numpy as np
 import pysam as ps
 import os
+import sys
 from datetime import datetime
-
 class CARD(object):
     def __init__(self):
         data = json.load(open('card/card.json'))
@@ -74,7 +74,7 @@ class CARD(object):
         df = []
         for i in snps:
             i = snps.get(i)
-            df.append([i[0],int(i[1:-1])-1,i[-1],seqid,ARO_accession,0])
+            df.append([i[0],int(i[1:-1])-1+int(offset),i[-1],seqid,ARO_accession,0])
         return pd.DataFrame(data = df,columns=['prev','pos','curr','seqid','ARO_accession','total'])
 
 def load_dataset(fp_mt):
@@ -124,12 +124,13 @@ def count_ARO(fp_sam,card):
     output:
         count number of ARO in all the sequence
     """
-    sam = ps.AlignmentFile('alignments/bwa.sam','r')
-    references = [j for i in card.rRNAs.items() for j in i[1]]
+    sam = ps.AlignmentFile(fp_sam,'r')
+
     for i in sam:
-        if i.reference_id!=-1 and i.flag == 0:
+        if i.reference_id != -1 and i.flag == 0:
+            item = i
+            qname = i.qname
             qseq = i.query_alignment_sequence
-            rseq = references[i.reference_id]
             rname = i.reference_name.split(':')[0]
             # 1-based?
             start = i.reference_start
@@ -144,9 +145,10 @@ def count_ARO(fp_sam,card):
                     if variant.loc[j,'curr'] == 'U' or variant.loc[j,'curr'] == qseq[pos-start]:
                         variant.loc[j,'total'] +=1
 
+
 if __name__ == '__main__':
     #arguments
-    fp_dataset = 'test_files/sim.fna'
+    fp_dataset = sys.argv[1]
     prefix = 'card'
     
     timer = datetime.now()
@@ -158,7 +160,7 @@ if __name__ == '__main__':
     #filter rRNA from dataset
     print('Filtering rRNA......')
     start_time = datetime.now()
-    #os.system('bash metaThing.sh '+fp_dataset)
+    os.system('bash metaThing.sh '+fp_dataset)
     print('Filtering completed ({}) '.format(datetime.now() - start_time ))
     #build BWA index
     print('Building bwa index......')
